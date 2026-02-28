@@ -1,10 +1,14 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import { RSI, BollingerBands } from "technicalindicators";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   // API Routes
   app.get("/api/market", async (req, res) => {
@@ -12,7 +16,7 @@ async function startServer() {
       const response = await fetch("https://api.binance.com/api/v3/ticker/24hr?symbol=ETHUSDT");
       const data = await response.json();
       res.json(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Market data fetch error:", error);
       res.status(500).json({ error: "Failed to fetch market data" });
     }
@@ -20,11 +24,8 @@ async function startServer() {
 
   app.get("/api/indicators", async (req, res) => {
     try {
-      // Fetch weekly klines: symbol=ETHUSDT, interval=1w, limit=100
       const response = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1w&limit=100");
       const data = await response.json();
-      
-      // data is an array of arrays: [Open time, Open, High, Low, Close, Volume, ...]
       const closes = data.map((d: any) => parseFloat(d[4]));
 
       const rsiInput = { values: closes, period: 14 };
@@ -34,7 +35,6 @@ async function startServer() {
       const bbInput = { period: 20, values: closes, stdDev: 2 };
       const bbResult = BollingerBands.calculate(bbInput);
       const currentBb = bbResult[bbResult.length - 1];
-
       const currentPrice = closes[closes.length - 1];
 
       let signalType = 'hold';
@@ -59,22 +59,19 @@ async function startServer() {
         signalText,
         signalClass
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Indicators fetch error:", error);
       res.status(500).json({ error: "Failed to fetch indicators" });
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static("dist"));
-  }
+  // Serve static files from dist
+  app.use(express.static(path.join(__dirname, "dist")));
+
+  // SPA fallback
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "dist", "index.html"));
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
