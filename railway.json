@@ -4,6 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "node dist/server.js"
+    "startCommand": "npx tsx server.ts"
   }
 }
